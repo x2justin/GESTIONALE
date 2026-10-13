@@ -131,6 +131,12 @@ export default function PatientDetail() {
   const [addError, setAddError] = useState('')
 
   const [removingUserId, setRemovingUserId] = useState<string | null>(null)
+  const [patientDocuments, setPatientDocuments] = useState<Array<{ name: string; created_at?: string; metadata?: { size?: number } }>>([])
+  const [documentsLoading, setDocumentsLoading] = useState(false)
+  const [selectedDocument, setSelectedDocument] = useState<File | null>(null)
+  const [documentBusy, setDocumentBusy] = useState(false)
+  const [documentMessage, setDocumentMessage] = useState('')
+  const [documentError, setDocumentError] = useState('')
 
   async function loadData() {
     if (!id) {
@@ -239,6 +245,72 @@ export default function PatientDetail() {
   useEffect(() => {
     loadData()
   }, [id])
+
+  useEffect(() => {
+    loadPatientDocuments()
+  }, [id])
+
+  async function loadPatientDocuments() {
+    if (!id) return
+    setDocumentsLoading(true)
+    const { data, error: listError } = await supabase.storage.from('patient-documents')
+      .list(id, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } })
+    if (listError) {
+      setDocumentError('Impossibile caricare i documenti. Verifica i permessi e riprova.')
+      setDocumentsLoading(false)
+      return
+    }
+    setPatientDocuments((data ?? []).filter((item) => item.name && !item.name.endsWith('/')))
+    setDocumentsLoading(false)
+  }
+
+  async function handleUploadDocument() {
+    if (!id || !selectedDocument) return setDocumentError('Seleziona prima un documento.')
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+    if (!allowedTypes.includes(selectedDocument.type)) return setDocumentError('Formato non supportato. Usa PDF, JPG, PNG, DOC o DOCX.')
+    if (selectedDocument.size > 10 * 1024 * 1024) return setDocumentError('Il file supera il limite di 10 MB.')
+    const safeName = selectedDocument.name.normalize('NFKD').replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-').slice(-120)
+    const objectName = `${crypto.randomUUID()}-${safeName || 'documento'}`
+    setDocumentBusy(true); setDocumentError(''); setDocumentMessage('')
+    const { error: uploadError } = await supabase.storage.from('patient-documents')
+      .upload(`${id}/${objectName}`, selectedDocument, { upsert: false, contentType: selectedDocument.type })
+    if (uploadError) {
+      setDocumentError('Caricamento non riuscito. Verifica la connessione e i permessi.')
+      setDocumentBusy(false); return
+    }
+    setSelectedDocument(null)
+    const input = document.getElementById('patient-document-file') as HTMLInputElement | null
+    if (input) input.value = ''
+    setDocumentMessage('Documento caricato correttamente.')
+    setDocumentBusy(false)
+    await loadPatientDocuments()
+  }
+
+  async function handleDownloadDocument(fileName: string) {
+    if (!id) return
+    const { data, error: downloadError } = await supabase.storage.from('patient-documents')
+      .createSignedUrl(`${id}/${fileName}`, 60)
+    if (downloadError || !data?.signedUrl) {
+      setDocumentError('Impossibile aprire il documento. Verifica i permessi e riprova.')
+      return
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  async function handleDeleteDocument(fileName: string) {
+    if (!id || !window.confirm('Vuoi eliminare definitivamente questo documento?')) return
+    setDocumentBusy(true); setDocumentError('')
+    const { error: deleteError } = await supabase.storage.from('patient-documents').remove([`${id}/${fileName}`])
+    if (deleteError) {
+      setDocumentError('Impossibile eliminare il documento.')
+      setDocumentBusy(false); return
+    }
+    setDocumentMessage('Documento eliminato.')
+    setDocumentBusy(false)
+    await loadPatientDocuments()
+  }
+
+
 
   const operators = accessUsers.filter(
     (user) => user.access_type === 'operator'
@@ -985,6 +1057,36 @@ export default function PatientDetail() {
           <p className="whitespace-pre-wrap text-sm text-slate-700">
             {displayValue(patient.notes)}
           </p>
+        </div>
+      </section>
+
+      {/* DOCUMENTI ALLEGATI */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
+        <div>
+          <h3 className="text-lg font-semibold text-slate-900">Documenti allegati</h3>
+          <p className="mt-1 text-sm text-slate-500">File privati associati a questo paziente. Formati: PDF, JPG, PNG, DOC e DOCX; massimo 10 MB per file.</p>
+        </div>
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="min-w-0 flex-1">
+            <label htmlFor="patient-document-file" className="mb-2 block text-sm font-medium text-slate-700">Seleziona un documento</label>
+            <input id="patient-document-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" disabled={documentBusy} onChange={(event) => { setSelectedDocument(event.target.files?.[0] ?? null); setDocumentError(''); setDocumentMessage('') }} className="block w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium" />
+          </div>
+          <button type="button" onClick={handleUploadDocument} disabled={!selectedDocument || documentBusy} className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">{documentBusy ? 'Attendere...' : 'Carica documento'}</button>
+        </div>
+        {documentError && <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{documentError}</p>}
+        {documentMessage && <p role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{documentMessage}</p>}
+        <div className="mt-6">
+          <h4 className="text-sm font-semibold text-slate-900">File presenti</h4>
+          {documentsLoading ? <p className="mt-3 text-sm text-slate-500">Caricamento documenti...</p> : patientDocuments.length === 0 ? <p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Nessun documento caricato.</p> : <ul className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200">
+            {patientDocuments.map((file) => {
+              const originalName = file.name.replace(/^[0-9a-f-]{36}-/i, '')
+              const size = file.metadata?.size
+              return <li key={file.name} className="flex min-w-0 flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0"><p className="break-all text-sm font-medium text-slate-800">{originalName}</p><p className="mt-1 text-xs text-slate-500">{size ? `${(size / (1024 * 1024)).toFixed(2)} MB · ` : ''}{file.created_at ? new Date(file.created_at).toLocaleDateString('it-IT') : ''}</p></div>
+                <div className="flex shrink-0 gap-2"><button type="button" onClick={() => handleDownloadDocument(file.name)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Apri</button><button type="button" onClick={() => handleDeleteDocument(file.name)} disabled={documentBusy} className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50">Elimina</button></div>
+              </li>
+            })}
+          </ul>}
         </div>
       </section>
 
