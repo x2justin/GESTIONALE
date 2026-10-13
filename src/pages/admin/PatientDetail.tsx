@@ -131,7 +131,7 @@ export default function PatientDetail() {
   const [addError, setAddError] = useState('')
 
   const [removingUserId, setRemovingUserId] = useState<string | null>(null)
-  const [patientDocuments, setPatientDocuments] = useState<Array<{ name: string; created_at?: string; metadata?: { size?: number } }>>([])
+  const [patientDocuments, setPatientDocuments] = useState<Array<{ name: string; created_at?: string; metadata?: { size?: number } | null }>>([])
   const [documentsLoading, setDocumentsLoading] = useState(false)
   const [selectedDocument, setSelectedDocument] = useState<File | null>(null)
   const [documentBusy, setDocumentBusy] = useState(false)
