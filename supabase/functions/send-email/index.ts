@@ -71,7 +71,7 @@ export default {
           : "/set-password";
 
         const verifyUrl =
-          `https://gestionale.dpdns.org${destinationPath}` +
+          `https://gestionale-anfas.vercel.app${destinationPath}` +
           `?token_hash=${encodeURIComponent(token_hash)}` +
           `&type=${encodeURIComponent(email_action_type)}`;
 
