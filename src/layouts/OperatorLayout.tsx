@@ -10,6 +10,7 @@ export default function OperatorLayout() {
   const navigate = useNavigate()
 
   const [menuOpen, setMenuOpen] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   async function handleLogout() {
