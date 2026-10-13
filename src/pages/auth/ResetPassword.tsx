@@ -11,54 +11,33 @@ export default function ResetPassword() {
   const [success, setSuccess] = useState(false)
 
   useEffect(() => {
-    let mounted = true
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return
-
-      if (event === 'PASSWORD_RECOVERY' && session) {
-        setRecoveryReady(true)
+    let active = true
+    async function check() {
+      const params = new URLSearchParams(window.location.search)
+      const tokenHash = params.get('token_hash')
+      const tokenType = params.get('type')
+      if (tokenHash && tokenType === 'recovery') {
+        const { error: verifyError } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+        if (!active) return
+        if (verifyError) setError('Il link non è valido o è scaduto. Richiedi un nuovo link.')
+        else setRecoveryReady(true)
         setCheckingRecovery(false)
         return
       }
-
-      if (event === 'SIGNED_IN' && session) {
-        setRecoveryReady(true)
-        setCheckingRecovery(false)
-        return
-      }
-
-      if (!session && !recoveryReady) {
-        setError(
-          'Il link di recupero non è valido o è scaduto. Richiedi un nuovo link.'
-        )
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!active) return
+      if (session) setRecoveryReady(true)
+      else setError('Il link non è valido o è scaduto. Richiedi un nuovo link.')
+      setCheckingRecovery(false)
+    }
+    check().catch(() => {
+      if (active) {
+        setError('Non è stato possibile verificare il link. Richiedi un nuovo link.')
         setCheckingRecovery(false)
       }
     })
-
-    async function checkExistingSession() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
-      if (!mounted) return
-
-      if (session) {
-        setRecoveryReady(true)
-      }
-
-      setCheckingRecovery(false)
-    }
-
-    checkExistingSession()
-
-    return () => {
-      mounted = false
-      subscription.unsubscribe()
-    }
-  }, [recoveryReady])
+    return () => { active = false }
+  }, [])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
