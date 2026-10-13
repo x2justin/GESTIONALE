@@ -6,4 +6,5 @@ body { overflow-x: hidden; }
   input, select, textarea, button { max-width: 100%; }
   select { min-width: 0; }
   div.fixed.inset-0 { overflow-y: auto; align-items: flex-start; padding: 0.75rem; }
+  div.fixed.inset-0 > div { width: 100%; max-height: calc(100dvh - 1.5rem); overflow-y: auto; }
 }
