@@ -44,6 +44,10 @@ export default function OperatorLayout() {
     }
   }, [menuOpen])
 
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [location.pathname])
+
   const pageInfo = (() => {
     if (location.pathname === '/operator') {
       return {
