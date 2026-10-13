@@ -213,7 +213,8 @@ export default function OperatorLayout() {
             </div>
           </header>
 
-          <main className="flex-1 p-6 lg:p-8">
+          {mobileMenuOpen && <div className="border-b border-slate-200 bg-white p-2 lg:hidden"><a href="/operator" className="block rounded-xl px-4 py-3 text-sm">Dashboard</a><a href="/operator/pazienti" className="block rounded-xl px-4 py-3 text-sm">Pazienti</a><a href="/operator/consegne" className="block rounded-xl px-4 py-3 text-sm">Consegne</a><a href="/operator/somministrazioni" className="block rounded-xl px-4 py-3 text-sm">Somministrazioni</a></div>}
+          <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
             <Outlet />
           </main>
         </div>
